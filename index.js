@@ -32,6 +32,8 @@ async function run() {
         ScheduleCollections = db.collection("schedules");
         const Transaction = db.collection("transactions");
         TransactionCollection = db.collection("transactions");
+        const studyPlanner = db.collection("studyPlanner");
+        studyPlannerCollection = db.collection("studyPlanner");
 
         // all schedule data get
         app.get("/schedules", async (req, res) => {
@@ -137,6 +139,71 @@ async function run() {
                 res.status(500).json({ error: err.message });
             }
         });
+
+
+        //..................Study planner ..............
+
+
+        //  Get tasks by email
+        app.get("/tasks/:email", async (req, res) => {
+            const { email } = req.params;
+            const tasks = await studyPlannerCollection.find({ email }).toArray();
+            res.send(tasks);
+        });
+
+        //  Add task with email
+        app.post("/tasks", async (req, res) => {
+            const studyPlanner = req.body;
+            const newTask = await studyPlannerCollection.insertOne(studyPlanner);
+            res.send(newTask);
+
+        });
+
+        //  Delete task
+        app.delete("/tasks/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+                const result = await studyPlannerCollection.deleteOne({ _id: new ObjectId(id) });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).json({ message: "Transaction not found" });
+                }
+
+                res.json({ message: "Deleted successfully" });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+
+        // Update a task by ID
+        app.put("/tasks/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+                const updatedTask = { ...req.body };
+
+                // Remove _id if present
+                delete updatedTask._id;
+
+                const result = await studyPlannerCollection.findOneAndUpdate(
+                    { _id: new ObjectId(id) },
+                    { $set: updatedTask },
+                    { returnDocument: "after" } // return updated doc
+                );
+
+                if (!result.value) {
+                    return res.status(404).send({ message: "Task not found" });
+                }
+
+                res.send(result.value);
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Error updating task" });
+            }
+        });
+
+
+
 
 
         await client.db("admin").command({ ping: 1 });
