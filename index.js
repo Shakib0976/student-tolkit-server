@@ -30,20 +30,30 @@ async function run() {
         await client.connect();
         const db = client.db("scheduleDB");
         ScheduleCollections = db.collection("schedules");
+        const Transaction = db.collection("transactions");
+        TransactionCollection = db.collection("transactions");
 
         // all schedule data get
         app.get("/schedules", async (req, res) => {
             const schedules = await ScheduleCollections.find().toArray();
             res.send(schedules);
         });
-        
+
+        // email wise schedule data get
+        app.get("/email/schedules", async (req, res) => {
+            const email = req.query.email;
+            const result = await ScheduleCollections.find({ email }).toArray();
+            res.send(result);
+        });
+
+
         // schedule data post
         app.post("/schedules", async (req, res) => {
             const schedule = req.body;
             const result = await ScheduleCollections.insertOne(schedule);
             res.send(result);
         });
-       
+
 
         // schedule data update
         app.put("/schedules/:id", async (req, res) => {
@@ -61,7 +71,7 @@ async function run() {
                 res.status(500).send({ error: err.message });
             }
         });
-        
+
 
         // schedule data delete
         app.delete("/schedules/:id", async (req, res) => {
@@ -81,6 +91,53 @@ async function run() {
                 res.status(500).json({ error: err.message });
             }
         });
+
+
+
+
+
+        // ...............transaction section...................
+
+
+
+        // Get all transactions for a specific user
+        app.get("/transactions/:email", async (req, res) => {
+            try {
+                const email = req.params.email;
+                const transactions = await TransactionCollection.find({ userEmail: email }).toArray();
+                res.send(transactions);
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        // Add a new transaction
+        app.post("/transactions", async (req, res) => {
+            try {
+                const transaction = req.body;
+                const result = await TransactionCollection.insertOne(transaction);
+                res.send(result);
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        // Delete a transaction
+        app.delete("/transactions/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+                const result = await TransactionCollection.deleteOne({ _id: new ObjectId(id) });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).json({ message: "Transaction not found" });
+                }
+
+                res.json({ message: "Deleted successfully" });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
 
         await client.db("admin").command({ ping: 1 });
         console.log("✅ Connected to MongoDB!");
