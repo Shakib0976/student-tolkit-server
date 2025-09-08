@@ -2,6 +2,7 @@ const express = require('express')
 const cors = require('cors')
 const app = express()
 const port = process.env.PORT || 5000;
+const { OpenAI } = require("openai");
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 
@@ -9,6 +10,12 @@ require('dotenv').config()
 // middleware
 app.use(express.json());
 app.use(cors())
+
+
+// Initialize OpenAI
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+});
 
 
 
@@ -34,6 +41,11 @@ async function run() {
         TransactionCollection = db.collection("transactions");
         const studyPlanner = db.collection("studyPlanner");
         studyPlannerCollection = db.collection("studyPlanner");
+        const quizCollection = db.collection("quizResults");
+
+
+
+
 
         // all schedule data get
         app.get("/schedules", async (req, res) => {
@@ -206,8 +218,85 @@ async function run() {
 
 
 
+        // ...................Quiz generate section .................
+
+        app.post("/generate-question", async (req, res) => {
+            try {
+                const { subject, type = "MCQ", difficulty = "medium" } = req.body;
+
+                const prompt = `Generate one ${type} question in ${subject} at ${difficulty} difficulty.
+                                Provide options (a,b,c,d) if MCQ and clearly mark the correct answer.
+                                Return JSON like this:
+                               {
+                                 "question": "your question here",
+                                 "options": ["a) ...", "b) ...", "c) ...", "d) ..."],
+                                 "answer": "b"
+                               }`;
+
+                const completion = await openai.chat.completions.create({
+                    model: "gpt-4.1-mini", // Flash AI
+                    messages: [
+                        { role: "system", content: "You are an AI exam question generator." },
+                        { role: "user", content: prompt },
+                    ],
+                });
+
+                const rawText = completion.choices[0].message.content;
+
+                let questionData;
+                try {
+                    questionData = JSON.parse(rawText); // parse JSON output
+                } catch (err) {
+                    questionData = { question: rawText, options: [], answer: "" }; // fallback
+                }
+
+                res.json(questionData);
+            } catch (error) {
+                console.error("AI question error:", error);
+                res.status(500).json({ error: "Failed to generate AI question" });
+            }
+        });
+
+        // alias for saving attempts
+        app.post("/quiz-attempts", async (req, res) => {
+            try {
+                const quizData = req.body;
+                quizData.timestamp = new Date();
+                const result = await quizCollection.insertOne(quizData);
+                res.send({ message: "Attempt saved", data: result });
+            } catch (err) {
+                res.status(500).send({ error: err.message });
+            }
+        });
+
+        // alias for getting attempts
+        app.get("/quiz-attempts/:email", async (req, res) => {
+            try {
+                const { email } = req.params;
+                const results = await quizCollection.find({ email }).sort({ timestamp: -1 }).toArray();
+                res.send(results);
+            } catch (err) {
+                res.status(500).send({ error: err.message });
+            }
+        });
+
+        // clear history
+        app.delete("/quiz-attempts/clear/:email", async (req, res) => {
+            try {
+                const { email } = req.params;
+                const result = await quizCollection.deleteMany({ email });
+                res.send({ message: "History cleared", deletedCount: result.deletedCount });
+            } catch (err) {
+                res.status(500).send({ error: err.message });
+            }
+        });
+
+
+
+
+
         await client.db("admin").command({ ping: 1 });
-        console.log("✅ Connected to MongoDB!");
+        console.log(" Connected to MongoDB!");
     } catch (err) {
         console.error(err);
     }
