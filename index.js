@@ -42,10 +42,12 @@ async function run() {
         const studyPlanner = db.collection("studyPlanner");
         studyPlannerCollection = db.collection("studyPlanner");
         const quizCollection = db.collection("quizResults");
+        const reminderCollection = db.collection("reminders");
 
 
 
 
+        // .................schedule data ...................
 
         // all schedule data get
         app.get("/schedules", async (req, res) => {
@@ -286,6 +288,62 @@ async function run() {
                 const { email } = req.params;
                 const result = await quizCollection.deleteMany({ email });
                 res.send({ message: "History cleared", deletedCount: result.deletedCount });
+            } catch (err) {
+                res.status(500).send({ error: err.message });
+            }
+        });
+
+
+
+
+
+
+
+        // ...............reminder data ...........................
+
+
+        // Add a reminder
+        app.post("/reminders", async (req, res) => {
+            try {
+                const { email, task, date } = req.body;
+                if (!email || !task || !date) {
+                    return res.status(400).send({ error: "Missing required fields" });
+                }
+
+                const newReminder = {
+                    email,
+                    task,
+                    date,
+                    createdAt: new Date(),
+                };
+
+                const result = await reminderCollection.insertOne(newReminder);
+                res.send({ message: "Reminder added", data: result });
+            } catch (err) {
+                res.status(500).send({ error: err.message });
+            }
+        });
+
+        // Get reminders by user email
+        app.get("/reminders/:email", async (req, res) => {
+            try {
+                const { email } = req.params;
+                const reminders = await reminderCollection
+                    .find({ email })
+                    .sort({ date: 1 })
+                    .toArray();
+                res.send(reminders);
+            } catch (err) {
+                res.status(500).send({ error: err.message });
+            }
+        });
+
+        // Delete reminder by id
+        app.delete("/reminders/:id", async (req, res) => {
+            try {
+                const { id } = req.params;
+                const result = await reminderCollection.deleteOne({ _id: new ObjectId(id) });
+                res.send({ message: "Reminder deleted", deletedCount: result.deletedCount });
             } catch (err) {
                 res.status(500).send({ error: err.message });
             }
